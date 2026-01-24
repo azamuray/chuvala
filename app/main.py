@@ -120,7 +120,8 @@ async def login_google(request: Request):
     # Force HTTPS if behind proxy (common issue with Google Auth)
     if os.getenv("VIRTUAL_HOST"):
         redirect_uri = str(redirect_uri).replace("http://", "https://")
-        
+    
+    print(f"DEBUG: Generated Redirect URI: {redirect_uri}") # Debug log
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 @app.get("/auth/google/callback")
