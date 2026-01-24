@@ -14,6 +14,12 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Chuvala SSO")
 
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+from starlette.middleware.cors import CORSMiddleware
+
+# Trust Proxy Headers (for HTTPS offload)
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+
 # Session Middleware is required for Authlib
 app.add_middleware(SessionMiddleware, secret_key=auth.SECRET_KEY)
 
@@ -110,6 +116,11 @@ async def read_users_me(token: str = Depends(oauth2_scheme), db: Session = Depen
 async def login_google(request: Request):
     # Absolute URL for callback
     redirect_uri = request.url_for('auth_google')
+    
+    # Force HTTPS if behind proxy (common issue with Google Auth)
+    if os.getenv("VIRTUAL_HOST"):
+        redirect_uri = str(redirect_uri).replace("http://", "https://")
+        
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 @app.get("/auth/google/callback")
