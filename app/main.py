@@ -32,7 +32,6 @@ config = Config(".env")
 oauth = OAuth(config)
 
 # Get keys and strip whitespace (common copy-paste error)
-# Get keys and strip whitespace (common copy-paste error)
 raw_client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip()
 raw_client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
 
@@ -192,7 +191,6 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
     )
     
     # Retrieve redirect destination from session
-    # Retrieve redirect destination from session
     next_url = request.session.pop('next_url', None)
     
     # Validate destination
@@ -202,10 +200,46 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
         redirect_url = f"{final_url}?token={access_token}"
         return RedirectResponse(url=redirect_url)
     else:
-        # Show Dashboard
-        return templates.TemplateResponse("dashboard.html", {
+        # Show Dashboard AND set cookie
+        response = templates.TemplateResponse("dashboard.html", {
             "request": request,
             "email": user.email,
             "token": access_token
         })
+        response.set_cookie(key="chuvala_token", value=access_token, httponly=True)
+        return response
+
+# --- New Root Endpoint for Persistent Dashboard ---
+@app.get("/", response_class=HTMLResponse)
+async def root_dashboard(request: Request, token: str = None, db: Session = Depends(get_db)):
+    # 1. Check Query Param (e.g. from just-logged-in redirect)
+    # 2. Check Cookie
+    
+    active_token = token or request.cookies.get("chuvala_token")
+    
+    if not active_token:
+        return RedirectResponse(url="/login")
+        
+    # Validate Token
+    try:
+        payload = jwt.decode(active_token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+             raise Exception("Invalid token")
+    except Exception:
+        # Invalid token -> Redirect Login
+        return RedirectResponse(url="/login")
+
+    # Render Dashboard
+    response = templates.TemplateResponse("dashboard.html", {
+            "request": request,
+            "email": email,
+            "token": active_token
+        })
+    
+    # If token came from URL, set cookie for future
+    if token:
+        response.set_cookie(key="chuvala_token", value=token, httponly=True)
+        
+    return response
 

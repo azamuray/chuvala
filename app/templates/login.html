@@ -331,22 +331,9 @@
                     const sep = redirectTo.includes('?') ? '&' : '?';
                     window.location.href = `${redirectTo}${sep}token=${token}`;
                 } else {
-                    // Update: if direct login, reload page to hit dashboard logic in main.py? 
-                    // No, main.py renders dashboard only on GET /login/google callback or GET /login (wait, GET /token is API).
-                    // We need to simulate redirect to dashboard if no target.
-                    // Actually, let's just show an alert or redirect to a dashboard endpoint if we had one.
-                    // For now, reload without query params might show the form again unless we store cookie.
-                    // But we don't store session cookie for JWT. 
-                    // Best Fallback: Just redirect to "/" with token manually
+                    // Update: Login successful, redirect to Dashboard (Root)
+                    // The root endpoint will take this token, validate it, set a cookie, and show dashboard
                     window.location.href = `/?token=${token}`;
-                    // Note: "/" currently returns 404 in logs or "Backend running". 
-                    // Wait, main.py:173 root() returns JSON message.
-                    // Let's stick to the Alert for manual login without redirect target, or implement a dashboard view.
-                    // Ah, the dashboard template is rendered by backend helpers.
-                    // Simple fix: Reload with token in URL param? No that expects backend to parse it?
-                    // Let's just alert for now as "Dashboard" is mostly for OAuth redirect flow.
-                    // Actually, user wants dashboard. Let's redirect to ourselves with valid token param effectively?
-                    alert("Успешный вход! Токен: " + token.substring(0, 10) + "...");
                 }
             } catch (err) {
                 errorMsg.textContent = err.message;
