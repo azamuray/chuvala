@@ -19,6 +19,7 @@ services:
       - PYTHONUNBUFFERED=1
       # Production Proxy Settings
       - VIRTUAL_HOST=${VIRTUAL_HOST}
+      - VIRTUAL_PORT=8000 # Critical: Tell Proxy internal port is 8000
       - LETSENCRYPT_HOST=${LETSENCRYPT_HOST}
       - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
     depends_on:
@@ -26,6 +27,7 @@ services:
         condition: service_healthy
     networks:
       - chuvala-network
+      - web-proxy
 
   db:
     image: postgres:15
