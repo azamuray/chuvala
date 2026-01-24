@@ -178,5 +178,6 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
     # In production, this should be https://devosh.ru
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:80")
     redirect_url = f"{frontend_url}?token={access_token}"
+    print(f"DEBUG: Redirecting User to: {redirect_url}")
     return RedirectResponse(url=redirect_url)
 
