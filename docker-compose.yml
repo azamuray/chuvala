@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: chuvala_app
+    ports:
+      - "8001:8000" # Expose on 8001 to avoid conflict with other apps potentially on 8000
+    volumes:
+      - .:/app
+    environment:
+      - DATABASE_URL=postgresql://chuvala_user:chuvala_password@db/chuvala_db
+      - SECRET_KEY=supersecretkeyformvpdev
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - PYTHONUNBUFFERED=1
+      # Production Proxy Settings
+      - VIRTUAL_HOST=${VIRTUAL_HOST}
+      - LETSENCRYPT_HOST=${LETSENCRYPT_HOST}
+      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - chuvala-network
+
+  db:
+    image: postgres:15
+    container_name: chuvala_db
+    environment:
+      - POSTGRES_USER=chuvala_user
+      - POSTGRES_PASSWORD=chuvala_password
+      - POSTGRES_DB=chuvala_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U chuvala_user -d chuvala_db" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chuvala-network
+
+networks:
+  chuvala-network:
+    driver: bridge
+  web-proxy:
+    external: true
+
+volumes:
+  postgres_data:
