@@ -32,17 +32,9 @@ config = Config(".env")
 oauth = OAuth(config)
 
 # Get keys and strip whitespace (common copy-paste error)
+# Get keys and strip whitespace (common copy-paste error)
 raw_client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip()
 raw_client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
-
-# Debug: Print loaded config (Masked)
-print(f"DEBUG: Client ID Length: {len(raw_client_id)}")
-print(f"DEBUG: Client ID: {raw_client_id[:5]}...{raw_client_id[-5:]} (Check for typos!)")
-print(f"DEBUG: Client Secret Length: {len(raw_client_secret)}")
-if len(raw_client_secret) > 5:
-    print(f"DEBUG: Client Secret: {raw_client_secret[:3]}...{raw_client_secret[-3:]}")
-else:
-    print("DEBUG: Client Secret seems too short!")
 
 oauth.register(
     name='google',
@@ -149,7 +141,6 @@ async def login_google(request: Request, redirect_to: str = None):
     if redirect_to:
         request.session['next_url'] = redirect_to
     
-    print(f"DEBUG: Generated Redirect URI: {redirect_uri}") # Debug log
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 @app.get("/auth/google/callback")
@@ -201,6 +192,7 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
     )
     
     # Retrieve redirect destination from session
+    # Retrieve redirect destination from session
     next_url = request.session.pop('next_url', None)
     
     # Validate destination
@@ -208,9 +200,12 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
     
     if final_url:
         redirect_url = f"{final_url}?token={access_token}"
-        print(f"DEBUG: Redirecting User to: {redirect_url}")
         return RedirectResponse(url=redirect_url)
     else:
-        # If no redirect, just show token (or dashboard later)
-        return {"access_token": access_token, "message": "Login successful. No redirect target provided."}
+        # Show Dashboard
+        return templates.TemplateResponse("dashboard.html", {
+            "request": request,
+            "email": user.email,
+            "token": access_token
+        })
 

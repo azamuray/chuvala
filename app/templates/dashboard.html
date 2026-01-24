@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Добро пожаловать | Chuvala ID</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2563eb;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #0f172a;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            color: var(--text);
+        }
+
+        .card {
+            background: var(--card-bg);
+            padding: 2.5rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+
+        h1 {
+            margin-top: 0;
+        }
+
+        .user-info {
+            background: #f1f5f9;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin: 1.5rem 0;
+            word-break: break-all;
+        }
+
+        .services {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .service-btn {
+            display: block;
+            padding: 1rem;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            text-decoration: none;
+            color: var(--text);
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .service-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            transform: translateY(-2px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .subtitle {
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <h1>👋 Привет!</h1>
+        <p class="subtitle">Вы успешно вошли в Chuvala ID</p>
+
+        <div class="user-info">
+            <strong>{{ email }}</strong>
+        </div>
+
+        <p>Выберите сервис для перехода:</p>
+
+        <div class="services">
+            <!-- Token passed via URL for seamless login -->
+            <a href="https://devosh.ru?token={{ token }}" class="service-btn">
+                🧠 Devosh AI
+            </a>
+            <a href="https://trollai.ru?token={{ token }}" class="service-btn">
+                🤡 Troll AI
+            </a>
+        </div>
+    </div>
+</body>
+
+</html>
