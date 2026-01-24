@@ -6,9 +6,13 @@ from .database import engine
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.config import Config
 from starlette.requests import Request
-from starlette.responses import RedirectResponse
+from starlette.responses import RedirectResponse, HTMLResponse
+from starlette.templating import Jinja2Templates
 from authlib.integrations.starlette_client import OAuth
 import os
+
+# Initialize Templates
+templates = Jinja2Templates(directory="app/templates")
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -112,14 +116,38 @@ async def read_users_me(token: str = Depends(oauth2_scheme), db: Session = Depen
         raise credentials_exception
     return user
 
+# --- Helper: Validate Redirect URL ---
+def get_safe_redirect(url: str, default: str = None) -> str:
+    allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:80,https://devosh.ru,https://trollai.ru").split(",")
+    # Clean up whitespace
+    allowed_origins = [origin.strip() for origin in allowed_origins]
+    
+    if not url:
+        return default
+    
+    for origin in allowed_origins:
+        if url.startswith(origin):
+            return url
+    
+    print(f"SECURITY WARNING: Invalid redirect attempt to {url}")
+    return default
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
+
 @app.get("/login/google")
-async def login_google(request: Request):
+async def login_google(request: Request, redirect_to: str = None):
     # Absolute URL for callback
     redirect_uri = request.url_for('auth_google')
     
     # Force HTTPS if behind proxy (common issue with Google Auth)
     if os.getenv("VIRTUAL_HOST"):
         redirect_uri = str(redirect_uri).replace("http://", "https://")
+    
+    # Store the intended destination in the Session (Cookie)
+    if redirect_to:
+        request.session['next_url'] = redirect_to
     
     print(f"DEBUG: Generated Redirect URI: {redirect_uri}") # Debug log
     return await oauth.google.authorize_redirect(request, redirect_uri)
@@ -148,8 +176,6 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.email == email).first()
     if not user:
         # Create new user
-        # We don't have a password for them, so we set a dummy hash or handle it cleanly.
-        # For now, we'll just set an unusable password hash.
         new_user = models.User(
             email=email,
             hashed_password=auth.get_password_hash("SOCIAL_LOGIN_NO_PASSWORD"),
@@ -174,10 +200,17 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
         data={"sub": user.email}, expires_delta=access_token_expires
     )
     
-    # Redirect to Frontend with Token
-    # In production, this should be https://devosh.ru
-    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:80")
-    redirect_url = f"{frontend_url}?token={access_token}"
-    print(f"DEBUG: Redirecting User to: {redirect_url}")
-    return RedirectResponse(url=redirect_url)
+    # Retrieve redirect destination from session
+    next_url = request.session.pop('next_url', None)
+    
+    # Validate destination
+    final_url = get_safe_redirect(next_url)
+    
+    if final_url:
+        redirect_url = f"{final_url}?token={access_token}"
+        print(f"DEBUG: Redirecting User to: {redirect_url}")
+        return RedirectResponse(url=redirect_url)
+    else:
+        # If no redirect, just show token (or dashboard later)
+        return {"access_token": access_token, "message": "Login successful. No redirect target provided."}
 

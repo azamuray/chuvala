@@ -14,13 +14,15 @@ services:
       - ALGORITHM=HS256
       - ACCESS_TOKEN_EXPIRE_MINUTES=30
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - FRONTEND_URL=${FRONTEND_URL}
+      # - FRONTEND_URL=${FRONTEND_URL} # Deprecated
+      - ALLOWED_ORIGINS=https://devosh.ru,https://trollai.ru,http://localhost:8001
       - PYTHONUNBUFFERED=1
       # Production Proxy Settings
-      - VIRTUAL_HOST=${VIRTUAL_HOST}
+      - VIRTUAL_HOST=chuvala.ru
       - VIRTUAL_PORT=8000 # Critical: Tell Proxy internal port is 8000
-      - LETSENCRYPT_HOST=${LETSENCRYPT_HOST}
+      - LETSENCRYPT_HOST=chuvala.ru
       - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
     depends_on:
       db:
