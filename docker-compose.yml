@@ -8,6 +8,8 @@ services:
       - "8001:8000" # Expose on 8001 to avoid conflict with other apps potentially on 8000
     volumes:
       - .:/app
+    env_file:
+      - .env
     environment:
       - DATABASE_URL=postgresql://chuvala_user:chuvala_password@db/chuvala_db
       - SECRET_KEY=supersecretkeyformvpdev

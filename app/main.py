@@ -204,10 +204,23 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
         response = templates.TemplateResponse("dashboard.html", {
             "request": request,
             "email": user.email,
-            "token": access_token
+            "token": access_token,
+            "devosh_url": os.getenv("DEVOSH_URL", "https://devosh.ru"),
+            "trollai_url": os.getenv("TROLLAI_URL", "https://trollai.ru"),
+            "ingals_url": os.getenv("INGALS_URL", "https://ingals.ru"),
+            "damdac_url": os.getenv("DAMDAC_URL", "https://damdac.ru"),
         })
         response.set_cookie(key="chuvala_token", value=access_token, httponly=True)
         return response
+
+# --- Logout Endpoint ---
+@app.get("/logout")
+async def logout(request: Request, redirect_uri: str = None):
+    target = get_safe_redirect(redirect_uri, default="/login")
+    response = RedirectResponse(url=target, status_code=status.HTTP_302_FOUND)
+    response.delete_cookie(key="chuvala_token")
+    request.session.clear()
+    return response
 
 # --- New Root Endpoint for Persistent Dashboard ---
 @app.get("/", response_class=HTMLResponse)
@@ -234,7 +247,11 @@ async def root_dashboard(request: Request, token: str = None, db: Session = Depe
     response = templates.TemplateResponse("dashboard.html", {
             "request": request,
             "email": email,
-            "token": active_token
+            "token": active_token,
+            "devosh_url": os.getenv("DEVOSH_URL", "https://devosh.ru"),
+            "trollai_url": os.getenv("TROLLAI_URL", "https://trollai.ru"),
+            "ingals_url": os.getenv("INGALS_URL", "https://ingals.ru"),
+            "damdac_url": os.getenv("DAMDAC_URL", "https://damdac.ru"),
         })
     
     # If token came from URL, set cookie for future

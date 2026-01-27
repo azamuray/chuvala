@@ -91,17 +91,37 @@
 
         <div class="services">
             <!-- Token passed via URL for seamless login -->
-            <a href="https://devosh.ru?token={{ token }}" class="service-btn">
+            <a href="{{ devosh_url }}?token={{ token }}" class="service-btn">
                 🧠 Devosh AI
             </a>
-            <a href="https://trollai.ru?token={{ token }}" class="service-btn">
+            <a href="{{ trollai_url }}?token={{ token }}" class="service-btn">
                 🤡 Troll AI
             </a>
-            <a href="https://ingals.ru?token={{ token }}" class="service-btn">
+            <a href="{{ ingals_url }}?token={{ token }}" class="service-btn">
                 🇬🇧 Ingals
             </a>
+            <a href="{{ damdac_url }}?token={{ token }}" class="service-btn">
+                💰 Damdac
+            </a>
         </div>
+
+        <a href="/logout" class="logout-link">Выйти из аккаунта</a>
     </div>
+
+    <style>
+        .logout-link {
+            display: inline-block;
+            margin-top: 1.5rem;
+            color: #ef4444;
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .logout-link:hover {
+            text-decoration: underline;
+        }
+    </style>
 </body>
 
 </html>
