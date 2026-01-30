@@ -124,7 +124,9 @@ def get_safe_redirect(url: str, default: str = None) -> str:
     return default
 
 @app.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request):
+async def login_page(request: Request, redirect_to: str = None):
+    if redirect_to:
+        request.session['next_url'] = redirect_to
     return templates.TemplateResponse("login.html", {"request": request})
 
 @app.get("/login/google")
