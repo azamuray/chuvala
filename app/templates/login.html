@@ -326,6 +326,9 @@
                 const data = await tokenRes.json();
                 const token = data.access_token;
 
+                // Set cookie for SSO persistence (7 days)
+                document.cookie = `chuvala_token=${token}; path=/; max-age=604800; samesite=lax`;
+
                 // Redirect user
                 if (redirectTo) {
                     const sep = redirectTo.includes('?') ? '&' : '?';

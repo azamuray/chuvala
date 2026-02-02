@@ -268,7 +268,10 @@ async def root_dashboard(request: Request, token: str = None, db: Session = Depe
     
     # If token came from URL, set cookie for future
     if token:
-        response.set_cookie(key="chuvala_token", value=token, httponly=True)
+        response.set_cookie(key="chuvala_token", value=token, httponly=True, max_age=604800, samesite="lax")
+    elif active_token:
+        # Sliding Session: Refresh cookie expiration
+        response.set_cookie(key="chuvala_token", value=active_token, httponly=True, max_age=604800, samesite="lax")
         
     return response
 
