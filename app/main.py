@@ -218,10 +218,20 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
 # --- Logout Endpoint ---
 @app.get("/logout")
 async def logout(request: Request, redirect_uri: str = None):
-    target = get_safe_redirect(redirect_uri, default="/login")
-    response = RedirectResponse(url=target, status_code=status.HTTP_302_FOUND)
-    response.delete_cookie(key="chuvala_token")
+    # Clear local session
     request.session.clear()
+    
+    # Validate and set redirect target
+    target = get_safe_redirect(redirect_uri, default="/login")
+    
+    # Create response that clears cookie
+    # Instead of redirecting directly to target, redirect to Google logout first
+    # Google logout URL will then redirect to our target
+    google_logout_url = f"https://accounts.google.com/Logout?continue={target}"
+    
+    response = RedirectResponse(url=google_logout_url, status_code=status.HTTP_302_FOUND)
+    response.delete_cookie(key="chuvala_token")
+    
     return response
 
 # --- New Root Endpoint for Persistent Dashboard ---
