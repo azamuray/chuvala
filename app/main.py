@@ -80,7 +80,7 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
         )
     access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = auth.create_access_token(
-        data={"sub": user.email}, expires_delta=access_token_expires
+        data={"sub": user.email, "method": "standard"}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -109,7 +109,7 @@ async def read_users_me(token: str = Depends(oauth2_scheme), db: Session = Depen
 
 # --- Helper: Validate Redirect URL ---
 def get_safe_redirect(url: str, default: str = None) -> str:
-    allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:80,https://devosh.ru,https://trollai.ru").split(",")
+    allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:80,http://localhost,http://127.0.0.1,https://devosh.ru,https://trollai.ru,https://ingals.ru,https://damdac.ru").split(",")
     # Clean up whitespace
     allowed_origins = [origin.strip() for origin in allowed_origins]
     
@@ -125,6 +125,24 @@ def get_safe_redirect(url: str, default: str = None) -> str:
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request, redirect_to: str = None):
+    # SSO Logic: If already logged in (cookie exists), redirect immediately
+    token = request.cookies.get("chuvala_token")
+    if token:
+        try:
+            # Validate token locally
+            jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+            
+            # If valid, redirect back with token
+            target = get_safe_redirect(redirect_to)
+            if target:
+                sep = "&" if "?" in target else "?"
+                return RedirectResponse(url=f"{target}{sep}token={token}")
+            else:
+                return RedirectResponse(url="/")
+        except:
+            # Token invalid, proceed to login form
+            pass
+
     if redirect_to:
         request.session['next_url'] = redirect_to
     return templates.TemplateResponse("login.html", {"request": request})
@@ -143,6 +161,29 @@ async def login_google(request: Request, redirect_to: str = None):
         request.session['next_url'] = redirect_to
     
     return await oauth.google.authorize_redirect(request, redirect_uri)
+
+@app.get("/auth/check")
+async def auth_check(request: Request, redirect_to: str, fail_to: str = None):
+    # SSO Logic: If already logged in (cookie exists), redirect immediately
+    token = request.cookies.get("chuvala_token")
+    
+    if token:
+        try:
+            # Validate token locally
+            jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+            
+            # If valid, redirect back with token to APP
+            target = get_safe_redirect(redirect_to)
+            if target:
+                sep = "&" if "?" in target else "?"
+                return RedirectResponse(url=f"{target}{sep}token={token}")
+        except:
+            # Token invalid
+            pass
+
+    # No session or invalid session -> Go to landing page
+    fallback = get_safe_redirect(fail_to, default="/login")
+    return RedirectResponse(url=fallback)
 
 @app.get("/auth/google/callback")
 async def auth_google(request: Request, db: Session = Depends(get_db)):
@@ -189,7 +230,7 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
     # Issue JWT
     access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = auth.create_access_token(
-        data={"sub": user.email}, expires_delta=access_token_expires
+        data={"sub": user.email, "method": "google"}, expires_delta=access_token_expires
     )
     
     # Retrieve redirect destination from session
@@ -200,7 +241,10 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
     
     if final_url:
         redirect_url = f"{final_url}?token={access_token}"
-        return RedirectResponse(url=redirect_url)
+        response = RedirectResponse(url=redirect_url)
+        # CRITICAL: Set cookie so other apps can perform SSO check later
+        response.set_cookie(key="chuvala_token", value=access_token, httponly=True, max_age=604800, samesite="lax")
+        return response
     else:
         # Show Dashboard AND set cookie
         response = templates.TemplateResponse("dashboard.html", {
@@ -218,18 +262,34 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
 # --- Logout Endpoint ---
 @app.get("/logout")
 async def logout(request: Request, redirect_uri: str = None):
+    # Check current token to determine login method
+    cookie_token = request.cookies.get("chuvala_token")
+    login_method = "standard" # Default
+    
+    if cookie_token:
+        try:
+            # Decode without verification to get method (verification happens at check)
+            # Or verify if we want to be strict. Let's just decode unverified to be fast/forgiving.
+            payload = jwt.decode(cookie_token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+            login_method = payload.get("method", "standard")
+        except:
+            pass
+
     # Clear local session
     request.session.clear()
     
     # Validate and set redirect target
     target = get_safe_redirect(redirect_uri, default="/login")
     
-    # Create response that clears cookie
-    # Instead of redirecting directly to target, redirect to Google logout first
-    # Google logout URL will then redirect to our target
-    google_logout_url = f"https://accounts.google.com/Logout?continue={target}"
+    # Determine logout URL based on method
+    if login_method == "google":
+        # Redirect to Google logout for full sign-out.
+        logout_url = "https://accounts.google.com/Logout"
+    else:
+        # Standard logout - just redirect to login/target
+        logout_url = target
     
-    response = RedirectResponse(url=google_logout_url, status_code=status.HTTP_302_FOUND)
+    response = RedirectResponse(url=logout_url, status_code=status.HTTP_302_FOUND)
     response.delete_cookie(key="chuvala_token")
     
     return response
