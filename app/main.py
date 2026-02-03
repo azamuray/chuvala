@@ -139,17 +139,21 @@ async def read_users_me(token: str = Depends(oauth2_scheme), db: Session = Depen
 
 # --- Helper: Validate Redirect URL ---
 def get_safe_redirect(url: str, default: str = None) -> str:
-    allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:80,http://localhost,http://127.0.0.1,https://devosh.ru,https://trollai.ru,https://ingals.ru,https://damdac.ru").split(",")
+    allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:80,http://localhost,http://127.0.0.1,https://devosh.ru,https://trollai.ru,https://ingals.ru,https://damdac.ru,https://chuvala.ru").split(",")
     # Clean up whitespace
     allowed_origins = [origin.strip() for origin in allowed_origins]
-    
+
     if not url:
         return default
-    
+
+    # Allow relative URLs (same host)
+    if url.startswith("/"):
+        return url
+
     for origin in allowed_origins:
         if url.startswith(origin):
             return url
-    
+
     print(f"SECURITY WARNING: Invalid redirect attempt to {url}")
     return default
 
@@ -421,6 +425,126 @@ async def auth_telegram(request: Request, db: Session = Depends(get_db)):
         })
         response.set_cookie(key="chuvala_token", value=access_token, httponly=True)
         return response
+
+# --- Account Linking (Telegram <-> Email/Google) ---
+@app.get("/link", response_class=HTMLResponse)
+async def link_account_page(request: Request, token: str = None):
+    """Page for linking Telegram account to existing account"""
+    if not token:
+        return templates.TemplateResponse("link_error.html", {
+            "request": request,
+            "error": "Неверная ссылка. Используй /link в боте Damdac."
+        })
+
+    # Verify link token
+    try:
+        payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+        telegram_id = payload.get("telegram_id")
+        purpose = payload.get("purpose")
+
+        if purpose != "link_account" or not telegram_id:
+            raise Exception("Invalid token")
+    except Exception as e:
+        return templates.TemplateResponse("link_error.html", {
+            "request": request,
+            "error": "Ссылка недействительна или истекла. Запроси новую через /link в боте."
+        })
+
+    # Store token in session for after login
+    request.session['link_token'] = token
+
+    # Check if user already logged in
+    existing_token = request.cookies.get("chuvala_token")
+    if existing_token:
+        try:
+            user_payload = jwt.decode(existing_token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+            email = user_payload.get("sub")
+            # Redirect to link confirmation
+            return RedirectResponse(url=f"/link/confirm?token={token}")
+        except:
+            pass
+
+    # Show login page with link context
+    return templates.TemplateResponse("link_login.html", {
+        "request": request,
+        "telegram_id": telegram_id,
+        "token": token
+    })
+
+@app.get("/link/confirm", response_class=HTMLResponse)
+async def link_confirm_page(request: Request, token: str, db: Session = Depends(get_db)):
+    """Confirm linking after user is logged in"""
+    # Get current user from cookie
+    user_token = request.cookies.get("chuvala_token")
+    if not user_token:
+        return RedirectResponse(url=f"/link?token={token}")
+
+    try:
+        user_payload = jwt.decode(user_token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+        email = user_payload.get("sub")
+    except:
+        return RedirectResponse(url=f"/link?token={token}")
+
+    # Verify link token
+    try:
+        link_payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+        telegram_id = link_payload.get("telegram_id")
+        telegram_username = link_payload.get("telegram_username")
+
+        if not telegram_id:
+            raise Exception("No telegram_id")
+    except:
+        return templates.TemplateResponse("link_error.html", {
+            "request": request,
+            "error": "Ссылка истекла. Запроси новую через /link в боте."
+        })
+
+    # Find user by email
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        return templates.TemplateResponse("link_error.html", {
+            "request": request,
+            "error": "Пользователь не найден."
+        })
+
+    # Check if telegram_id already linked to another account
+    existing = db.query(models.User).filter(models.User.telegram_id == telegram_id).first()
+    if existing and existing.id != user.id:
+        # Delete the telegram-only account, we'll merge into the main one
+        db.delete(existing)
+
+    # Link telegram to this account
+    user.telegram_id = telegram_id
+    if telegram_username:
+        user.telegram_username = telegram_username
+    db.commit()
+
+    # Call Damdac internal API to merge accounts there too
+    import httpx
+    damdac_api_url = os.getenv("DAMDAC_API_URL", "https://damdac.ru")
+    internal_secret = os.getenv("INTERNAL_API_SECRET", "damdac_internal_secret_key")
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{damdac_api_url}/api/internal/link-account",
+                json={
+                    "email": email,
+                    "telegram_id": telegram_id,
+                    "secret": internal_secret
+                },
+                timeout=10.0
+            )
+            print(f"Damdac link response: {response.status_code} - {response.text}")
+    except Exception as e:
+        print(f"Failed to notify Damdac about link: {e}")
+        # Don't fail the flow, linking in Chuvala still succeeded
+
+    return templates.TemplateResponse("link_success.html", {
+        "request": request,
+        "email": email,
+        "telegram_username": telegram_username or telegram_id
+    })
 
 # --- Logout Endpoint ---
 @app.get("/logout")
