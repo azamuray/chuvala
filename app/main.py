@@ -25,7 +25,15 @@ from starlette.middleware.cors import CORSMiddleware
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 # Session Middleware is required for Authlib
-app.add_middleware(SessionMiddleware, secret_key=auth.SECRET_KEY)
+# same_site="lax" allows cookie on redirect back from Google
+# https_only=True sets Secure flag for HTTPS
+is_production = os.getenv("VIRTUAL_HOST") is not None
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=auth.SECRET_KEY,
+    same_site="lax",
+    https_only=is_production
+)
 
 # Social Auth Setup
 config = Config(".env")
@@ -281,11 +289,9 @@ async def logout(request: Request, redirect_uri: str = None):
     # Validate and set redirect target
     target = get_safe_redirect(redirect_uri, default="/login")
     
-    # Determine logout URL based on method
-    if login_method == "google":
-        # Redirect to Google logout for full sign-out.
-        logout_url = "https://accounts.google.com/Logout"
-    else:
+    # Always redirect to target - Google logout breaks the flow
+    # The local session is cleared, which is enough for app logout
+    if True:
         # Standard logout - just redirect to login/target
         logout_url = target
     
