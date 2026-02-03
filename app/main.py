@@ -10,6 +10,8 @@ from starlette.responses import RedirectResponse, HTMLResponse
 from starlette.templating import Jinja2Templates
 from authlib.integrations.starlette_client import OAuth
 import os
+import hmac
+import hashlib
 
 # Initialize Templates
 templates = Jinja2Templates(directory="app/templates")
@@ -17,6 +19,26 @@ templates = Jinja2Templates(directory="app/templates")
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Chuvala SSO")
+
+# --- Startup: Migrate new columns ---
+@app.on_event("startup")
+def startup_db_migrate():
+    from sqlalchemy import text
+    db = database.SessionLocal()
+    try:
+        # Add telegram_id column if not exists
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_id BIGINT UNIQUE"))
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_username VARCHAR"))
+        # Make email nullable for Telegram-only users
+        db.execute(text("ALTER TABLE users ALTER COLUMN email DROP NOT NULL"))
+        db.execute(text("ALTER TABLE users ALTER COLUMN hashed_password DROP NOT NULL"))
+        db.commit()
+        print("Migration: Telegram columns added")
+    except Exception as e:
+        print(f"Migration warning: {e}")
+        db.rollback()
+    finally:
+        db.close()
 
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from starlette.middleware.cors import CORSMiddleware
@@ -258,6 +280,139 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
         response = templates.TemplateResponse("dashboard.html", {
             "request": request,
             "email": user.email,
+            "token": access_token,
+            "devosh_url": os.getenv("DEVOSH_URL", "https://devosh.ru"),
+            "trollai_url": os.getenv("TROLLAI_URL", "https://trollai.ru"),
+            "ingals_url": os.getenv("INGALS_URL", "https://ingals.ru"),
+            "damdac_url": os.getenv("DAMDAC_URL", "https://damdac.ru"),
+        })
+        response.set_cookie(key="chuvala_token", value=access_token, httponly=True)
+        return response
+
+# --- Telegram Auth ---
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+
+def verify_telegram_auth(data: dict) -> bool:
+    """Verify Telegram Login Widget data"""
+    if not TELEGRAM_BOT_TOKEN:
+        return False
+
+    check_hash = data.pop('hash', None)
+    if not check_hash:
+        return False
+
+    # Create data check string
+    data_check_arr = [f"{k}={v}" for k, v in sorted(data.items())]
+    data_check_string = "\n".join(data_check_arr)
+
+    # Create secret key from bot token
+    secret_key = hashlib.sha256(TELEGRAM_BOT_TOKEN.encode()).digest()
+
+    # Calculate hash
+    calculated_hash = hmac.new(
+        secret_key,
+        data_check_string.encode(),
+        hashlib.sha256
+    ).hexdigest()
+
+    return calculated_hash == check_hash
+
+@app.get("/login/telegram")
+async def login_telegram(request: Request, redirect_to: str = None):
+    """Store redirect URL for Telegram auth"""
+    if redirect_to:
+        request.session['next_url'] = redirect_to
+    # Redirect to login page with telegram param to trigger widget
+    return RedirectResponse(url=f"/login?method=telegram&redirect_to={redirect_to or ''}")
+
+@app.get("/auth/telegram/callback")
+async def auth_telegram(request: Request, db: Session = Depends(get_db)):
+    """Handle Telegram Login Widget callback"""
+    # Get all query params
+    params = dict(request.query_params)
+
+    # Extract telegram data
+    telegram_id = params.get('id')
+    first_name = params.get('first_name', '')
+    last_name = params.get('last_name', '')
+    username = params.get('username', '')
+    photo_url = params.get('photo_url', '')
+    auth_date = params.get('auth_date', '')
+    hash_value = params.get('hash', '')
+
+    if not telegram_id or not hash_value:
+        raise HTTPException(status_code=400, detail="Invalid Telegram auth data")
+
+    # Verify hash
+    verify_data = {
+        'id': telegram_id,
+        'first_name': first_name,
+        'auth_date': auth_date,
+        'hash': hash_value
+    }
+    if last_name:
+        verify_data['last_name'] = last_name
+    if username:
+        verify_data['username'] = username
+    if photo_url:
+        verify_data['photo_url'] = photo_url
+
+    if not verify_telegram_auth(verify_data.copy()):
+        raise HTTPException(status_code=400, detail="Telegram auth verification failed")
+
+    # Check auth_date (not older than 1 day)
+    import time
+    if int(auth_date) < time.time() - 86400:
+        raise HTTPException(status_code=400, detail="Telegram auth expired")
+
+    telegram_id_int = int(telegram_id)
+
+    # Find or create user
+    user = db.query(models.User).filter(models.User.telegram_id == telegram_id_int).first()
+
+    if not user:
+        # Create new user with Telegram
+        display_name = f"{first_name} {last_name}".strip() or username or f"tg_{telegram_id}"
+        new_user = models.User(
+            email=None,  # Telegram users may not have email
+            hashed_password=None,
+            avatar=photo_url or None,
+            telegram_id=telegram_id_int,
+            telegram_username=username or None
+        )
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        user = new_user
+    else:
+        # Update avatar/username if changed
+        if photo_url and user.avatar != photo_url:
+            user.avatar = photo_url
+        if username and user.telegram_username != username:
+            user.telegram_username = username
+        db.commit()
+
+    # Issue JWT - use telegram_id as sub since email may be null
+    access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
+    sub = user.email or f"tg:{telegram_id_int}"
+    access_token = auth.create_access_token(
+        data={"sub": sub, "method": "telegram", "telegram_id": telegram_id_int},
+        expires_delta=access_token_expires
+    )
+
+    # Retrieve redirect destination from session
+    next_url = request.session.pop('next_url', None)
+    final_url = get_safe_redirect(next_url)
+
+    if final_url:
+        redirect_url = f"{final_url}?token={access_token}"
+        response = RedirectResponse(url=redirect_url)
+        response.set_cookie(key="chuvala_token", value=access_token, httponly=True, max_age=604800, samesite="lax")
+        return response
+    else:
+        response = templates.TemplateResponse("dashboard.html", {
+            "request": request,
+            "email": user.email or f"@{username}" or f"Telegram {telegram_id}",
             "token": access_token,
             "devosh_url": os.getenv("DEVOSH_URL", "https://devosh.ru"),
             "trollai_url": os.getenv("TROLLAI_URL", "https://trollai.ru"),

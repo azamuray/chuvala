@@ -204,7 +204,7 @@
 
         <div id="success-msg" class="alert-success"></div>
 
-        <!-- Google Login (Shared) -->
+        <!-- Social Login Buttons -->
         <a href="#" id="google-login-btn" class="social-btn">
             <svg width="20" height="20" viewBox="0 0 24 24">
                 <path
@@ -222,6 +222,20 @@
             </svg>
             <span id="google-text">Продолжить через Google</span>
         </a>
+
+        <div style="height: 0.75rem;"></div>
+
+        <!-- Telegram Login Button -->
+        <div id="telegram-login-container" style="display: flex; justify-content: center;">
+            <script async src="https://telegram.org/js/telegram-widget.js?22"
+                data-telegram-login="damdac_bot"
+                data-size="large"
+                data-radius="8"
+                data-auth-url=""
+                data-request-access="write"
+                id="telegram-widget-script">
+            </script>
+        </div>
 
         <div class="divider">
             <span>или</span>
@@ -257,6 +271,19 @@
             googleUrl += `?redirect_to=${encodeURIComponent(redirectTo)}`;
         }
         googleBtn.href = googleUrl;
+
+        // 2. Telegram Widget Setup
+        const telegramScript = document.getElementById('telegram-widget-script');
+        if (telegramScript) {
+            // Build auth URL with redirect
+            let authUrl = window.location.origin + '/auth/telegram/callback';
+            telegramScript.setAttribute('data-auth-url', authUrl);
+
+            // Store redirect in session before Telegram auth
+            if (redirectTo) {
+                fetch(`/login/telegram?redirect_to=${encodeURIComponent(redirectTo)}`);
+            }
+        }
 
         // 2. Tab Switching
         function switchTab(mode) {
