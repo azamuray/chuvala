@@ -49,7 +49,7 @@ app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 # Session Middleware is required for Authlib
 # same_site="lax" allows cookie on redirect back from Google
 # https_only=True sets Secure flag for HTTPS
-is_production = os.getenv("VIRTUAL_HOST") is not None
+is_production = bool(os.getenv("VIRTUAL_HOST", ""))
 app.add_middleware(
     SessionMiddleware,
     secret_key=auth.SECRET_KEY,
