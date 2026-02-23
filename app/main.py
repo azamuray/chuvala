@@ -139,7 +139,7 @@ async def read_users_me(token: str = Depends(oauth2_scheme), db: Session = Depen
 
 # --- Helper: Validate Redirect URL ---
 def get_safe_redirect(url: str, default: str = None) -> str:
-    allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:80,http://localhost,http://127.0.0.1,https://devosh.ru,https://trollai.ru,https://ingals.ru,https://damdac.ru,https://chuvala.ru").split(",")
+    allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:80,http://localhost,http://127.0.0.1,https://devosh.ru,https://trollai.ru,https://ingals.ru,https://damdac.ru,https://chuvala.ru,https://sunlatta.lovza.ru").split(",")
     # Clean up whitespace
     allowed_origins = [origin.strip() for origin in allowed_origins]
 
