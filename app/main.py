@@ -269,9 +269,11 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
     
     # Retrieve redirect destination from session
     next_url = request.session.pop('next_url', None)
-    
+    print(f"DEBUG google callback: next_url={next_url}, session_keys={list(request.session.keys())}")
+
     # Validate destination
     final_url = get_safe_redirect(next_url)
+    print(f"DEBUG google callback: final_url={final_url}")
     
     if final_url:
         redirect_url = f"{final_url}?token={access_token}"
