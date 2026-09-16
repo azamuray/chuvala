@@ -179,7 +179,7 @@ async def login_page(request: Request, redirect_to: str = None):
 
     if redirect_to:
         request.session['next_url'] = redirect_to
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse(request, "login.html", {})
 
 @app.get("/login/google")
 async def login_google(request: Request, redirect_to: str = None):
@@ -283,9 +283,7 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
         return response
     else:
         # Show Dashboard AND set cookie
-        response = templates.TemplateResponse("dashboard.html", {
-            "request": request,
-            "email": user.email,
+        response = templates.TemplateResponse(request, "dashboard.html", {"email": user.email,
             "token": access_token,
             "devosh_url": os.getenv("DEVOSH_URL", "https://devosh.ru"),
             "trollai_url": os.getenv("TROLLAI_URL", "https://trollai.ru"),
@@ -417,9 +415,7 @@ async def auth_telegram(request: Request, db: Session = Depends(get_db)):
         response.set_cookie(key="chuvala_token", value=access_token, httponly=True, max_age=604800, samesite="lax")
         return response
     else:
-        response = templates.TemplateResponse("dashboard.html", {
-            "request": request,
-            "email": user.email or f"@{username}" or f"Telegram {telegram_id}",
+        response = templates.TemplateResponse(request, "dashboard.html", {"email": user.email or f"@{username}" or f"Telegram {telegram_id}",
             "token": access_token,
             "devosh_url": os.getenv("DEVOSH_URL", "https://devosh.ru"),
             "trollai_url": os.getenv("TROLLAI_URL", "https://trollai.ru"),
@@ -435,9 +431,7 @@ async def auth_telegram(request: Request, db: Session = Depends(get_db)):
 async def link_account_page(request: Request, token: str = None):
     """Page for linking Telegram account to existing account"""
     if not token:
-        return templates.TemplateResponse("link_error.html", {
-            "request": request,
-            "error": "Неверная ссылка. Используй /link в боте Damdac."
+        return templates.TemplateResponse(request, "link_error.html", {"error": "Неверная ссылка. Используй /link в боте Damdac."
         })
 
     # Verify link token
@@ -449,9 +443,7 @@ async def link_account_page(request: Request, token: str = None):
         if purpose != "link_account" or not telegram_id:
             raise Exception("Invalid token")
     except Exception as e:
-        return templates.TemplateResponse("link_error.html", {
-            "request": request,
-            "error": "Ссылка недействительна или истекла. Запроси новую через /link в боте."
+        return templates.TemplateResponse(request, "link_error.html", {"error": "Ссылка недействительна или истекла. Запроси новую через /link в боте."
         })
 
     # Store token in session for after login
@@ -469,9 +461,7 @@ async def link_account_page(request: Request, token: str = None):
             pass
 
     # Show login page with link context
-    return templates.TemplateResponse("link_login.html", {
-        "request": request,
-        "telegram_id": telegram_id,
+    return templates.TemplateResponse(request, "link_login.html", {"telegram_id": telegram_id,
         "token": token
     })
 
@@ -498,17 +488,13 @@ async def link_confirm_page(request: Request, token: str, db: Session = Depends(
         if not telegram_id:
             raise Exception("No telegram_id")
     except:
-        return templates.TemplateResponse("link_error.html", {
-            "request": request,
-            "error": "Ссылка истекла. Запроси новую через /link в боте."
+        return templates.TemplateResponse(request, "link_error.html", {"error": "Ссылка истекла. Запроси новую через /link в боте."
         })
 
     # Find user by email
     user = db.query(models.User).filter(models.User.email == email).first()
     if not user:
-        return templates.TemplateResponse("link_error.html", {
-            "request": request,
-            "error": "Пользователь не найден."
+        return templates.TemplateResponse(request, "link_error.html", {"error": "Пользователь не найден."
         })
 
     # Check if telegram_id already linked to another account
@@ -544,9 +530,7 @@ async def link_confirm_page(request: Request, token: str, db: Session = Depends(
         print(f"Failed to notify Damdac about link: {e}")
         # Don't fail the flow, linking in Chuvala still succeeded
 
-    return templates.TemplateResponse("link_success.html", {
-        "request": request,
-        "email": email,
+    return templates.TemplateResponse(request, "link_success.html", {"email": email,
         "telegram_username": telegram_username or telegram_id
     })
 
@@ -605,9 +589,7 @@ async def root_dashboard(request: Request, token: str = None, db: Session = Depe
         return RedirectResponse(url="/login")
 
     # Render Dashboard
-    response = templates.TemplateResponse("dashboard.html", {
-            "request": request,
-            "email": email,
+    response = templates.TemplateResponse(request, "dashboard.html", {"email": email,
             "token": active_token,
             "devosh_url": os.getenv("DEVOSH_URL", "https://devosh.ru"),
             "trollai_url": os.getenv("TROLLAI_URL", "https://trollai.ru"),
