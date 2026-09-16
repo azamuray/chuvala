@@ -139,7 +139,7 @@ async def read_users_me(token: str = Depends(oauth2_scheme), db: Session = Depen
 
 # --- Helper: Validate Redirect URL ---
 def get_safe_redirect(url: str, default: str = None) -> str:
-    allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:80,http://localhost,http://127.0.0.1,https://devosh.ru,https://trollai.ru,https://ingals.ru,https://damdac.ru,https://chuvala.ru,https://sunlatta.lovza.ru").split(",")
+    allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:80,http://localhost,http://127.0.0.1,https://devosh.ru,https://trollai.ru,https://ingals.ru,https://damdac.ru,https://chuvala.ru,https://sunlatta.lovza.ru,https://tower.lovza.ru,http://localhost:5173").split(",")
     # Clean up whitespace
     allowed_origins = [origin.strip() for origin in allowed_origins]
 
@@ -291,6 +291,7 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
             "trollai_url": os.getenv("TROLLAI_URL", "https://trollai.ru"),
             "ingals_url": os.getenv("INGALS_URL", "https://ingals.ru"),
             "damdac_url": os.getenv("DAMDAC_URL", "https://damdac.ru"),
+            "tower_url": os.getenv("TOWER_URL", "https://tower.lovza.ru"),
         })
         response.set_cookie(key="chuvala_token", value=access_token, httponly=True)
         return response
@@ -424,6 +425,7 @@ async def auth_telegram(request: Request, db: Session = Depends(get_db)):
             "trollai_url": os.getenv("TROLLAI_URL", "https://trollai.ru"),
             "ingals_url": os.getenv("INGALS_URL", "https://ingals.ru"),
             "damdac_url": os.getenv("DAMDAC_URL", "https://damdac.ru"),
+            "tower_url": os.getenv("TOWER_URL", "https://tower.lovza.ru"),
         })
         response.set_cookie(key="chuvala_token", value=access_token, httponly=True)
         return response
@@ -611,6 +613,7 @@ async def root_dashboard(request: Request, token: str = None, db: Session = Depe
             "trollai_url": os.getenv("TROLLAI_URL", "https://trollai.ru"),
             "ingals_url": os.getenv("INGALS_URL", "https://ingals.ru"),
             "damdac_url": os.getenv("DAMDAC_URL", "https://damdac.ru"),
+            "tower_url": os.getenv("TOWER_URL", "https://tower.lovza.ru"),
         })
     
     # If token came from URL, set cookie for future

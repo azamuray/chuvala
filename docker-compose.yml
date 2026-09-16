@@ -1,24 +1,20 @@
-version: '3.8'
-
 services:
   web:
     build: .
     container_name: chuvala_app
-    ports:
-      - "8001:8000" # Expose on 8001 to avoid conflict with other apps potentially on 8000
-    volumes:
-      - .:/app
+    # Наружу — только через gateway (nginx-proxy) по VIRTUAL_HOST; локально: make dev
     env_file:
       - .env
     environment:
       - DATABASE_URL=postgresql://chuvala_user:chuvala_password@db/chuvala_db
-      - SECRET_KEY=supersecretkeyformvpdev
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY обязателен — задай в .env}
       - ALGORITHM=HS256
-      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       # - FRONTEND_URL=${FRONTEND_URL} # Deprecated
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - TOWER_URL=${TOWER_URL:-https://tower.lovza.ru}
       - PYTHONUNBUFFERED=1
       # Production Proxy Settings
       - VIRTUAL_HOST=${VIRTUAL_HOST}
